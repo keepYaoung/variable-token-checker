@@ -1,95 +1,108 @@
 # Variable Checker
 
-라이트/다크처럼 **모드(mode)만 다르고 토큰은 같아야 하는 두 프레임**을 골라
-실행하면, 대응되는 레이어들이 같은 변수(토큰)에 바인딩됐는지 비교하고,
-각 모드의 실제 값을 보여주며, **하드코딩된(변수 미사용) 값**을 잡아내는 Figma 플러그인.
+> 🇰🇷 한국어 문서: [README.ko.md](README.ko.md)
 
-## 무엇을 검사하나
+A Figma plugin that compares two frames with the **same layout but different modes**
+(e.g. Light / Dark). It checks whether matching layers bind the **same variable
+tokens**, shows each mode's resolved value side-by-side, and flags **hardcoded
+values** that should have been tokenized.
 
-- **같은 변수 바인딩 여부** — A/B 양쪽 레이어가 같은 토큰을 가리키는지.
-- **모드 값 표시** — 한 변수가 Light/Dark 등 모드별로 갖는 실제 값.
-- **하드코딩 검출** — 변수 대신 raw 값(예: `#1A1A1A`)을 박은 곳.
+## Why
 
-### 판정(Verdict) 매트릭스
+When you build a screen in Light mode and a Dark version next to it, both frames
+should bind the same variable token on every layer — only the *mode value* of the
+token differs. Drift is easy to introduce: someone hardcodes a color, swaps a token
+for a similar-looking one, or adds a layer to one frame and forgets the other.
+This plugin surfaces all three.
 
-| A 상태 | B 상태 | 결과 |
+## What it checks
+
+| A side | B side | Verdict |
 |---|---|---|
-| variable X | variable X | **OK** (모드값 표 함께) |
+| variable X | variable X | **OK** (mode values shown) |
 | variable X | variable Y | **diff-token** |
 | variable | hardcoded | **one-hardcoded** |
 | hardcoded | variable | **one-hardcoded** |
 | hardcoded | hardcoded | **both-hardcoded** (warn) |
 | variable | absent / mixed | **structure-prop** |
 
-## v0 비교 범위
+Layer pairing uses **path keys**: the layer name chain from the root frame, with
+same-name siblings disambiguated by `[0]`, `[1]`, … indexes.
 
-| 범위 | 항목 |
+## v0 scope
+
+| Group | Properties |
 |---|---|
-| 색상 | `fills[i].color`, `strokes[i].color` (SOLID 페인트만; gradient/image는 감지만) |
-| 스칼라 | `cornerRadius` (+ 네 모서리), `opacity`, `paddingLeft/Right/Top/Bottom`, `itemSpacing` |
-| 텍스트 | `fontSize`, `lineHeight`, `letterSpacing`, `fontWeight` |
+| Color | `fills[i].color`, `strokes[i].color` (SOLID paints only; gradient / image flagged but not deep-compared) |
+| Scalars | `cornerRadius` (+ all four corners), `opacity`, `paddingLeft/Right/Top/Bottom`, `itemSpacing` |
+| Text | `fontSize`, `lineHeight`, `letterSpacing`, `fontWeight` |
 
-레이어 페어링은 **경로 키(pathKey)** 기준 — 동명 형제는 `[0]`, `[1]` 인덱스로 구분.
-
-## 설치 (개발 모드)
+## Install (development)
 
 1. `npm install`
-2. `npm run build` → `dist/code.js`, `dist/ui.html` 생성.
-3. Figma 데스크톱 → **Plugins → Development → Import plugin from manifest…**
-   → 이 폴더의 `manifest.json` 선택.
+2. `npm run build` — produces `dist/code.js` and `dist/ui.html`.
+3. In Figma desktop: **Plugins → Development → Import plugin from manifest…**
+   and pick this folder's `manifest.json`.
 
-## 사용
+`dist/` is committed, so step 1 and 2 are only needed if you change the source.
 
-1. 같은 디자인의 두 프레임(예: `Light` / `Dark`)을 선택.
-2. **Plugins → Development → Variable Checker** 실행.
-3. 리포트 탭 확인:
-   - **Mismatches** — 모든 불일치 (diff-token / one-hardcoded / structure-prop / both-hardcoded).
-   - **Structure** — 한쪽에만 있는 레이어.
-   - **Hardcoded** — A/B 각각의 변수 미사용 값 목록.
-   - **OK** — 같은 변수에 바인딩된 항목 (모드값 표 펼침).
-4. 항목 클릭 → 캔버스에서 해당 레이어로 점프.
-5. 선택을 바꾼 뒤 **Re-run** 버튼.
+## Usage
 
-## 개발
+1. Select **exactly two** frames that should share token bindings
+   (e.g. a `Light` frame and a `Dark` frame).
+2. Run **Plugins → Development → Variable Checker**.
+3. Inspect the tabs:
+   - **Mismatches** — every non-OK finding (diff-token, one-hardcoded,
+     structure-prop, both-hardcoded).
+   - **Structure** — layers present in only one frame.
+   - **Hardcoded** — every non-tokenized value, per frame.
+   - **OK** — matched bindings, each expandable into a Mode × Value table.
+4. Click any item to jump to that layer in the canvas.
+5. Change the selection and hit **Re-run**.
+
+## Development
 
 ```bash
-npm run watch       # esbuild watch (재빌드 + ui.html 복사)
+npm run watch       # esbuild watch (rebuild + copy ui.html)
 npm run typecheck   # tsc --noEmit
-npm test            # compare.ts 순수 로직 단위 테스트 (node --test)
+npm test            # node --test against the pure compare() function
 ```
 
-### 프로젝트 구조
+### Layout
 
 ```
 variable-checker/
 ├─ manifest.json
 ├─ package.json
 ├─ tsconfig.json
-├─ build.mjs              # esbuild + ui.html copy
+├─ build.mjs              # esbuild bundle + ui.html copy
 ├─ src/
-│  ├─ code.ts             # Figma 메인 스레드 (snapshot + 변수 해석)
-│  ├─ compare.ts          # 순수 비교 로직 (Figma API 무관, 테스트 가능)
-│  ├─ types.ts            # 공유 스키마 + 메시지 타입
-│  └─ ui.html             # UI 스레드 (리포트 렌더)
+│  ├─ code.ts             # Figma main thread (snapshot + variable resolution)
+│  ├─ compare.ts          # pure comparison (Figma-API-free, unit-testable)
+│  ├─ types.ts            # shared schema + ui<->code message types
+│  └─ ui.html             # UI thread (report renderer)
 ├─ test/
-│  └─ compare.test.mjs    # 8 케이스
-└─ dist/                  # 빌드 산출물 (커밋됨, 매니페스트가 참조)
+│  └─ compare.test.mjs    # 8 cases over the verdict matrix
+└─ dist/                  # build output (committed; referenced by manifest)
 ```
 
-### 변경 흐름
+### Edit loop
 
-`src/*` 수정 → `npm run build` → Figma에서 플러그인 재실행.
-타입 변경 시 `npm run typecheck` 으로 검증, 비교 로직 변경 시 `npm test`.
+Edit a file under `src/` → `npm run build` → re-run the plugin in Figma.
+Run `npm run typecheck` after type changes, `npm test` after touching
+`compare.ts`.
 
-## 매니페스트 메모
+## Manifest notes
 
-- `documentAccess: "dynamic-page"` 사용. 따라서 변수 조회는 **반드시 async**
-  (`getVariableByIdAsync`, `getVariableCollectionByIdAsync`).
-- `networkAccess: { allowedDomains: ["none"] }` — 외부 통신 없음.
+- `documentAccess: "dynamic-page"` — variable lookups therefore go through the
+  **async** API (`getVariableByIdAsync`, `getVariableCollectionByIdAsync`).
+- `networkAccess: { allowedDomains: ["none"] }` — no outbound traffic.
 
-## 알려진 한계 (v0 후속)
+## Known limits (deferred past v0)
 
-- effects / gradient / image 페인트는 **감지만** 하고 토큰 상세 비교 안 함.
-- 레이어 페어링은 **이름+동명 인덱스** — 이름 다르게 리네임하면 구조 차이로 잡힘.
-- 스타일(Style) 기반 토큰(변수 외) 비교 미지원.
-- 3개 이상 모드 / 다중 컬렉션 교차검증 미지원.
+- Effects / gradient / image paints are *detected*, not deep-compared against
+  tokens.
+- Layer pairing is purely name + same-name index — renaming a layer in one frame
+  shows up as a structure diff rather than a property diff.
+- Style-based tokens (non-variable) are not compared.
+- 3+ modes / cross-collection checks are out of scope.
