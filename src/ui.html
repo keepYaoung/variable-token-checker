@@ -244,6 +244,16 @@
     border-radius: 4px;
     background: var(--code-bg);
   }
+  .thumbs.sub { margin-top: 6px; gap: 8px; }
+  /* Fixed, equal-size box per side; asset centered inside with 20px breathing
+     room, keeping its aspect (background fills the box incl. padding). */
+  .thumbs.sub .thumb img {
+    height: 120px;
+    max-height: none;
+    padding: 20px;
+    object-fit: contain;
+    object-position: center;
+  }
   .count {
     color: var(--muted);
     font-size: 11px;
@@ -546,6 +556,9 @@
           where +
         '</div>' +
         renderSides(f.a, f.b, typeLabel, kindChip) +
+        (((f.nodeIdA && currentPreviews[f.nodeIdA]) || (f.nodeIdB && currentPreviews[f.nodeIdB]))
+          ? '<div class="thumbs sub">' + thumbHtml('A', f.nodeIdA, currentBgA) + thumbHtml('B', f.nodeIdB, currentBgB) + '</div>'
+          : '') +
         renderModes(f.varInfo, !same) +
       '</div>';
   }

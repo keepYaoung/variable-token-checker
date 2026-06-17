@@ -608,13 +608,16 @@
           const ids = /* @__PURE__ */ new Set();
           const seenGroups = /* @__PURE__ */ new Set();
           for (const f of report.findings) {
-            if (!f.groupKey || seenGroups.has(f.groupKey)) continue;
-            seenGroups.add(f.groupKey);
-            const mp = byPath[f.groupKey];
-            if (mp) {
-              ids.add(mp.nodeIdA);
-              ids.add(mp.nodeIdB);
+            if (f.groupKey && !seenGroups.has(f.groupKey)) {
+              seenGroups.add(f.groupKey);
+              const mp = byPath[f.groupKey];
+              if (mp) {
+                ids.add(mp.nodeIdA);
+                ids.add(mp.nodeIdB);
+              }
             }
+            if (f.nodeIdA) ids.add(f.nodeIdA);
+            if (f.nodeIdB) ids.add(f.nodeIdB);
           }
           const out = {};
           for (const id of ids) {
